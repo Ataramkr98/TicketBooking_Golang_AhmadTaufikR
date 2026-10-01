@@ -1,0 +1,16 @@
+# Build context = elysian-backend/
+node_modules/
+bin/
+*.exe
+*.exe~
+*.test
+*.out
+coverage.out
+.env
+.env.*
+!.env.example
+*.log
+.idea/
+.vscode/
+tmp/
+dist/

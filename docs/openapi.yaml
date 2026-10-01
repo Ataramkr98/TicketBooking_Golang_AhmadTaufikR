@@ -1,0 +1,281 @@
+openapi: 3.1.0
+info:
+  title: Elysian Premium Lines API
+  version: 1.1.0
+  description: |-
+    Premium bus reservation API. All money values are integer rupiah and times are RFC3339.
+
+    Environment behaviour is driven by `APP_ENV`, which is normalised to one of
+    `development`, `staging`, or `production` (case-insensitive; `dev`/`local` map
+    to development, `prod` to production, `stage`/`stg` to staging). An
+    unrecognised value is a startup error. `staging` runs every production guard
+    (real secrets, `CACHE_DRIVER=redis`, no simulator payment endpoint, no
+    payment webhook, no `debug_code`), so it is treated like production
+    everywhere in this document unless stated otherwise.
+
+    Every error is `application/problem+json` with both `detail` and `message`
+    carrying the same string, plus `code` and `field_errors`.
+servers:
+  - url: http://localhost:8080
+paths:
+  /health/live:
+    get: { operationId: live, responses: { '200': { description: API is alive } } }
+  /health/ready:
+    get: { operationId: ready, responses: { '200': { description: Database is ready }, '503': { $ref: '#/components/responses/Problem' } } }
+  /api/v1/cities:
+    get:
+      operationId: listCities
+      parameters: [{ name: query, in: query, schema: { type: string } }]
+      responses: { '200': { $ref: '#/components/responses/CityList' } }
+  /api/v1/cities/{originId}/destinations:
+    get:
+      operationId: listDestinations
+      parameters: [{ $ref: '#/components/parameters/OriginId' }]
+      responses: { '200': { $ref: '#/components/responses/CityList' } }
+  /api/v1/trips/search:
+    get:
+      operationId: searchTrips
+      description: |-
+        `departure_period` accepts only morning, afternoon, and evening. An
+        unknown value is a 422 rather than being dropped, so a mixed list is
+        never partially honoured. `departure_date` must fall between yesterday
+        and one year from today, evaluated in Asia/Jakarta to match the query.
+        A malformed integer parameter (`passengers`, `max_price`) is a 422; it
+        is not silently coerced to 0 or to the default.
+      parameters:
+        - { name: origin_city_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: destination_city_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: departure_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: passengers, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 6 } }
+        - { name: class, in: query, schema: { enum: [sleeper, executive] } }
+        - { name: departure_period, in: query, schema: { type: array, items: { enum: [morning, afternoon, evening] } } }
+        - { name: max_price, in: query, schema: { type: integer, format: int64, minimum: 0 } }
+        - { name: sort, in: query, schema: { enum: [price_asc, price_desc, duration_asc, departure_asc] } }
+      responses: { '200': { description: List of offers, content: { application/json: { schema: { $ref: '#/components/schemas/TripOfferListEnvelope' } } } }, '422': { $ref: '#/components/responses/Problem' } }
+  /api/v1/trips/{tripId}/seats:
+    get:
+      operationId: getSeatMap
+      description: |-
+        The trip id is cross-checked against the offer. A pair that does not
+        exist answers 404 `OFFER_NOT_FOUND`; the trip id is never echoed back
+        unchecked. A malformed `tripId` or `offer_id` is a 400.
+      parameters:
+        - { name: tripId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: offer_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Seat map }, '400': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' } }
+  /api/v1/seat-holds:
+    post:
+      operationId: createSeatHold
+      security: [{ guestSession: [], csrf: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SeatHoldRequest' } } } }
+      responses: { '201': { description: Seats held }, '409': { $ref: '#/components/responses/Problem' } }
+  /api/v1/seat-holds/{holdId}:
+    put:
+      operationId: replaceSeatHold
+      security: [{ guestSession: [], csrf: [] }]
+      parameters: [{ name: holdId, in: path, required: true, schema: { type: string, pattern: '^[0-9a-fA-F-]{36}\.[0-9a-fA-F-]{36}$' } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SeatHoldRequest' } } } }
+      responses: { '200': { description: Seat hold updated }, '400': { $ref: '#/components/responses/Problem' }, '403': { $ref: '#/components/responses/Problem' }, '409': { $ref: '#/components/responses/Problem' } }
+    delete:
+      operationId: deleteSeatHold
+      security: [{ guestSession: [], csrf: [] }]
+      parameters: [{ name: holdId, in: path, required: true, schema: { type: string, pattern: '^[0-9a-fA-F-]{36}\.[0-9a-fA-F-]{36}$' } }]
+      responses: { '204': { description: Seat hold released, with no content type }, '400': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' } }
+  /api/v1/bookings:
+    post:
+      operationId: createBooking
+      security: [{ guestSession: [], csrf: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [hold_id], properties: { hold_id: { type: string, pattern: '^[0-9a-fA-F-]{36}\.[0-9a-fA-F-]{36}$' } } } } } }
+      responses: { '201': { description: Draft booking created }, '400': { $ref: '#/components/responses/Problem' }, '409': { $ref: '#/components/responses/Problem' }, '410': { $ref: '#/components/responses/Problem' }, '422': { $ref: '#/components/responses/Problem' } }
+  /api/v1/bookings/{bookingId}:
+    get:
+      operationId: getBooking
+      security: [{ guestSession: [] }]
+      parameters: [{ name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Booking detail }, '400': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' } }
+  /api/v1/bookings/{bookingId}/checkout:
+    put:
+      operationId: checkoutBooking
+      security: [{ guestSession: [], csrf: [] }]
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CheckoutRequest' } } } }
+      responses: { '200': { description: Payment instructions }, '400': { $ref: '#/components/responses/Problem' }, '409': { $ref: '#/components/responses/Problem' }, '410': { $ref: '#/components/responses/Problem' }, '422': { $ref: '#/components/responses/Problem' } }
+  /api/v1/payments/{paymentId}:
+    get:
+      operationId: getPayment
+      security: [{ guestSession: [] }]
+      parameters: [{ name: paymentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Payment status }, '400': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' } }
+  /api/v1/payments/{paymentId}/simulate-success:
+    post:
+      operationId: simulatePaymentSuccess
+      description: Development only. In any production-guarded environment this route answers 404, including in `staging`. The global rate limit is 180 requests/minute/IP.
+      security: [{ guestSession: [], csrf: [] }]
+      parameters:
+        - { name: paymentId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses: { '200': { description: Payment verified }, '400': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' }, '410': { $ref: '#/components/responses/Problem' } }
+  /api/v1/webhooks/payments/{provider}:
+    post:
+      operationId: paymentWebhook
+      description: The only accepted provider is `simulator`, and only in development. Any other provider, and any production-guarded environment including `staging`, answers 501 `PROVIDER_NOT_CONFIGURED`. A real gateway must verify its signature before calling this.
+      parameters: [{ name: provider, in: path, required: true, schema: { type: string } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [payment_id, event_id], properties: { payment_id: { type: string, format: uuid }, event_id: { type: string } } } } } }
+      responses: { '200': { description: Event accepted }, '400': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' }, '501': { $ref: '#/components/responses/Problem' } }
+  /api/v1/ticket-access/otp:
+    post:
+      operationId: requestTicketOTP
+      security: [{ guestSession: [], csrf: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [phone], properties: { phone: { type: string } } } } } }
+      responses: { '202': { description: Generic OTP response }, '422': { $ref: '#/components/responses/Problem' }, '429': { $ref: '#/components/responses/Problem' } }
+  /api/v1/ticket-access/otp/verify:
+    post:
+      operationId: verifyTicketOTP
+      security: [{ guestSession: [], csrf: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [phone, code], properties: { phone: { type: string }, code: { type: string, pattern: '^[0-9]{6}$' } } } } } }
+      responses: { '200': { description: Active tickets and access cookie }, '401': { $ref: '#/components/responses/Problem' }, '422': { $ref: '#/components/responses/Problem' }, '429': { $ref: '#/components/responses/Problem' } }
+  /api/v1/tickets:
+    get: { operationId: listTickets, security: [{ ticketAccess: [] }], responses: { '200': { description: Active tickets } } }
+  /api/v1/tickets/{ticketId}:
+    get:
+      operationId: getTicket
+      security: [{ ticketAccess: [] }]
+      parameters: [{ name: ticketId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Ticket detail }, '400': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' } }
+  /api/v1/tickets/{ticketId}/qr.svg:
+    get:
+      operationId: getTicketQR
+      security: [{ ticketAccess: [] }]
+      parameters: [{ name: ticketId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Boarding QR, content: { image/svg+xml: { schema: { type: string } } } }, '400': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' } }
+  /api/v1/admin/auth/login:
+    post:
+      operationId: adminLogin
+      description: |-
+        Returns a 1-hour HS256 bearer token. There is no refresh token and no
+        revocation list: logging out is the client discarding the token. The
+        signature check is backed by a per-request read of the account, so
+        deactivating or demoting an admin takes effect on the next request rather
+        than when the token expires. An unknown email still performs a bcrypt
+        comparison so the endpoint cannot be used to enumerate accounts.
+
+        Rate limited to 10 attempts per 5 minutes per IP, well below the global
+        180/minute/IP budget. A 401 is returned for an unknown email, a wrong
+        password, and a deactivated account alike.
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [email, password], properties: { email: { type: string, format: email }, password: { type: string } } } } } }
+      responses: { '200': { description: Bearer JWT }, '400': { $ref: '#/components/responses/Problem' }, '401': { $ref: '#/components/responses/Problem' }, '429': { $ref: '#/components/responses/Problem' } }
+  /api/v1/admin/dashboard/stats:
+    get:
+      operationId: adminDashboardStats
+      description: |-
+        Occupancy is scoped to departures within the next 7 days, which is why a
+        fleet-wide ratio would not be meaningful. A counter whose query failed is
+        reported by name in `unavailable_metrics` rather than being rendered as 0,
+        so a database blip is distinguishable from an empty system.
+      security: [{ adminBearer: [] }]
+      responses: { '200': { description: Aggregated KPIs with 7-day revenue and 7-day occupancy, content: { application/json: { schema: { $ref: '#/components/schemas/AdminDashboardStats' } } } }, '500': { $ref: '#/components/responses/Problem' } }
+  /api/v1/admin/audit-logs:
+    get:
+      operationId: adminAuditLogs
+      description: Requires the `admin` role. An `operator` token receives 403 `ADMIN_ROLE_FORBIDDEN`; the trail names every administrator, their email addresses, and every mutation they made, which is a supervisory record rather than day-to-day station work.
+      security: [{ adminBearer: [] }]
+      parameters: [{ name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 }, description: 'Rows to return, newest first. Values outside 1..200 fall back to 50.' }]
+      responses: { '200': { description: Security audit trail }, '403': { $ref: '#/components/responses/Problem' }, '422': { $ref: '#/components/responses/Problem' } }
+  /api/v1/admin/{resource}:
+    parameters: [{ name: resource, in: path, required: true, schema: { enum: [cities, terminals, routes, buses, trips, fares] } }]
+    get: { operationId: adminListResource, security: [{ adminBearer: [] }], responses: { '200': { description: Resource list } } }
+    post:
+      operationId: adminCreateResource
+      description: Requires the `admin` role. Every field must be a string within 200 characters; foreign keys must be UUIDs and numeric fields must be whole numbers inside the documented range. A non-string value is a 422 rather than being coerced with `fmt.Sprint`.
+      security: [{ adminBearer: [], csrf: [] }]
+      responses: { '201': { description: Resource created }, '400': { $ref: '#/components/responses/Problem' }, '403': { $ref: '#/components/responses/Problem' }, '409': { $ref: '#/components/responses/Problem' }, '422': { $ref: '#/components/responses/Problem' } }
+  /api/v1/admin/{resource}/{id}:
+    parameters:
+      - { name: resource, in: path, required: true, schema: { enum: [cities, terminals, routes, buses, trips, fares] } }
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: adminUpdateResource
+      description: |-
+        Requires the `admin` role, except that an `operator` may update a trip
+        when the body is exactly `{"status": "..."}`. A malformed `id` is a 400.
+        A `fares` update that carries `active` is a 422: `trip_fares` has no
+        such column, so the flag used to be parsed and silently discarded.
+      security: [{ adminBearer: [], csrf: [] }]
+      responses: { '200': { description: Resource updated }, '400': { $ref: '#/components/responses/Problem' }, '403': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' }, '422': { $ref: '#/components/responses/Problem' } }
+    delete:
+      operationId: adminDeleteResource
+      description: Requires the `admin` role. Cities, terminals, routes, and buses are deactivated; trips are cancelled; fares are deleted. Responds 204 with no content type.
+      security: [{ adminBearer: [], csrf: [] }]
+      responses: { '204': { description: Resource deactivated or deleted, with no content type }, '400': { $ref: '#/components/responses/Problem' }, '403': { $ref: '#/components/responses/Problem' }, '409': { $ref: '#/components/responses/Problem' } }
+  /api/v1/admin/bookings:
+    get:
+      operationId: adminListBookings
+      security: [{ adminBearer: [] }]
+      parameters: [{ name: status, in: query, schema: { enum: [draft, pending_payment, paid, ticketed, expired, cancelled] }, description: 'Exact-match status filter. An unrecognised value is a 422 rather than an empty result set. Omit for every status.' }]
+      responses: { '200': { description: Booking monitoring }, '422': { $ref: '#/components/responses/Problem' } }
+  /api/v1/admin/bookings/{id}:
+    get:
+      operationId: adminGetBooking
+      description: |-
+        Requires the `admin` role. An `operator` token receives 403
+        `ADMIN_ROLE_FORBIDDEN`. The response contains the decrypted contact phone,
+        the contact email, and each passenger's NIK or passport number, so the
+        role check is enforced on every request and not only on the signature.
+
+        A value that is genuinely absent renders as an empty string. A value
+        that exists but cannot be decrypted renders as
+        `[unavailable: decryption failed]` and is logged, so a key problem is
+        never indistinguishable from missing PII.
+      security: [{ adminBearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Booking detail and decrypted manifest, admin role only }, '400': { $ref: '#/components/responses/Problem' }, '403': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' } }
+  /api/v1/admin/bookings/{id}/cancel:
+    post:
+      operationId: adminCancelBooking
+      security: [{ adminBearer: [], csrf: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Booking cancelled }, '409': { $ref: '#/components/responses/Problem' } }
+  /api/v1/admin/tickets/scan:
+    post:
+      operationId: adminScanTicket
+      description: A `token` may be a signed QR payload, a `TKT-...` code, or a ticket UUID. The gate-scan audit row is written on every successful scan; a failure to write it is logged and does not fail the scan.
+      security: [{ adminBearer: [], csrf: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [token], properties: { token: { type: string, description: Signed QR payload or ticket code/UUID } } } } } }
+      responses: { '200': { description: Boarding status (boarded or already_boarded) }, '400': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' }, '422': { $ref: '#/components/responses/Problem' } }
+  /api/v1/admin/buses/{id}/seats:
+    put:
+      operationId: adminReplaceBusSeats
+      description: Requires the `admin` role. Refused with 409 while the bus still has upcoming trips.
+      security: [{ adminBearer: [], csrf: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [seats], properties: { seats: { type: array, minItems: 1, items: { type: object, required: [code, deck, class, row, column] } } } } } } }
+      responses: { '200': { description: Seat layout replaced }, '400': { $ref: '#/components/responses/Problem' }, '403': { $ref: '#/components/responses/Problem' }, '409': { $ref: '#/components/responses/Problem' }, '422': { $ref: '#/components/responses/Problem' } }
+components:
+  securitySchemes:
+    guestSession: { type: apiKey, in: cookie, name: elysian_guest }
+    csrf: { type: apiKey, in: header, name: X-CSRF-Token }
+    ticketAccess: { type: apiKey, in: cookie, name: elysian_ticket_access }
+    adminBearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    OriginId: { name: originId, in: path, required: true, schema: { type: string, format: uuid } }
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 200 }, description: 'Enforced server-side. A missing header, or one shorter than 8 or longer than 200 characters, is a 422 VALIDATION_FAILED; it is no longer merely checked for presence.' }
+  responses:
+    Problem: { description: Problem Details, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    CityList: { description: City list, content: { application/json: { schema: { type: object, required: [success, message, data], properties: { success: { type: boolean }, message: { type: string }, data: { type: array, items: { $ref: '#/components/schemas/City' } } } } } } }
+  schemas:
+    City: { type: object, required: [id, name, slug], properties: { id: { type: string, format: uuid }, name: { type: string }, slug: { type: string } } }
+    Problem: { type: object, required: [title, status, code, detail, request_id], properties: { success: { type: boolean, example: false }, type: { type: string }, title: { type: string }, status: { type: integer }, code: { type: string }, detail: { type: string }, message: { type: string, description: Mirrors detail for legacy envelope clients }, field_errors: { type: object, additionalProperties: { type: string } }, request_id: { type: string } } }
+    TripOffer: { type: object, required: [offer_id, trip_id, origin, destination, departure_at, arrival_at, class, deck, price, seats_left], properties: { offer_id: { type: string, format: uuid }, trip_id: { type: string, format: uuid }, origin: { type: string }, destination: { type: string }, departure_at: { type: string, format: date-time }, arrival_at: { type: string, format: date-time }, duration_minutes: { type: integer }, class: { enum: [sleeper, executive] }, deck: { enum: [sleeper, executive] }, price: { type: integer, format: int64 }, seats_left: { type: integer }, bus_name: { type: string }, amenities: { type: array, items: { type: string } }, departure_station: { type: string }, arrival_station: { type: string } } }
+    TripOfferListEnvelope: { type: object, required: [success, message, data], properties: { success: { type: boolean, example: true }, message: { type: string, example: Operation successful }, data: { type: array, items: { $ref: '#/components/schemas/TripOffer' } } } }
+    SeatHoldRequest: { type: object, required: [offer_id, seat_ids], properties: { offer_id: { type: string, format: uuid }, seat_ids: { type: array, minItems: 1, maxItems: 6, uniqueItems: true, items: { type: string, format: uuid } } } }
+    AdminDashboardStats: { type: object, required: [total_revenue, total_bookings, paid_bookings, pending_bookings, active_trips, total_tickets, boarded_tickets, occupancy_rate, chart_data, recent_bookings, unavailable_metrics], properties: { total_revenue: { type: integer, format: int64 }, total_bookings: { type: integer, format: int64 }, paid_bookings: { type: integer, format: int64 }, pending_bookings: { type: integer, format: int64 }, active_trips: { type: integer, format: int64 }, total_tickets: { type: integer, format: int64 }, boarded_tickets: { type: integer, format: int64 }, occupancy_rate: { type: number, format: double, description: 'Percent of seats reserved or booked on departures in the next 7 days. 0 when the window holds no seats.' }, chart_data: { type: array, items: { type: object } }, recent_bookings: { type: array, items: { type: object } }, unavailable_metrics: { type: array, description: 'Names of the counters whose query failed. Empty on a healthy database; non-empty means those numbers are 0 because the read failed, not because the value is zero.', items: { type: string } } } }
+    CheckoutRequest:
+      type: object
+      required: [contact, passengers, payment_method]
+      properties:
+        contact: { type: object, required: [name, phone], properties: { name: { type: string }, phone: { type: string }, email: { type: string, format: email } } }
+        passengers: { type: array, minItems: 1, maxItems: 6, items: { type: object, required: [seat_id, full_name, identity_type, identity_number, date_of_birth, gender], properties: { seat_id: { type: string, format: uuid }, full_name: { type: string }, identity_type: { enum: [nik, passport] }, identity_number: { type: string }, date_of_birth: { type: string, format: date }, gender: { enum: [male, female] } } } }
+        payment_method: { enum: [va, qris, wallet] }

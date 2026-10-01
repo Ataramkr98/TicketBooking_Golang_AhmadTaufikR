@@ -1,0 +1,37 @@
+2026/09/27 13:04:52 warning: CACHE_DRIVER=memory is single-instance development mode
+2026/09/27 13:04:52 elysian api listening on :8080
+2026/09/27 13:05:01 request_id=236b50c5-eb8a-4468-a92b-5216e95416ab method=GET path=/health/ready status=200 duration_ms=187
+2026/09/27 13:08:41 request_id=de65ba94-c3c4-450e-8a49-85f970b1aabb method=POST path=/api/v1/admin/auth/login status=200 duration_ms=251
+2026/09/27 13:08:43 request_id=ac19722c-cdaa-4945-b4ab-b8d92f6378fa method=GET path=/api/v1/admin/dashboard/stats status=200 duration_ms=2203
+2026/09/27 13:53:38 request_id=e296edb4-eb68-48b0-b56b-2180c9c7dba3 method=POST path=/api/v1/admin/auth/login status=200 duration_ms=437
+2026/09/27 13:53:39 request_id=2286921f-0f4f-4132-9ab2-fc89d9132146 method=GET path=/api/v1/admin/dashboard/stats status=200 duration_ms=1152
+2026/09/27 14:00:08 request_id=dfc0080b-9601-4fe4-8391-11b3d01ca339 method=GET path=/api/v1/cities status=200 duration_ms=230
+2026/09/27 14:00:09 request_id=6b5cbd32-ef59-4271-9107-67be70058517 method=GET path=/api/v1/cities/6dc9754b-53e5-4d57-8556-d8f239c26416/destinations status=200 duration_ms=140
+2026/09/27 14:00:09 request_id=d02e63c6-992b-49fb-92d1-d3c86fa80f9f method=GET path=/api/v1/trips/search status=200 duration_ms=328
+2026/09/27 14:01:08 request_id=d909a53f-06a0-4e7f-9726-36fa5dafe0e7 method=GET path=/api/v1/cities status=200 duration_ms=100
+2026/09/27 14:01:08 request_id=897d1c0c-29c6-4c9c-bd1a-e80a58e4e5f9 method=GET path=/api/v1/cities/6dc9754b-53e5-4d57-8556-d8f239c26416/destinations status=200 duration_ms=59
+2026/09/27 14:01:08 request_id=3f7b2609-1ca4-4739-a458-4ba979d34b4f method=GET path=/api/v1/trips/search status=200 duration_ms=86
+2026/09/27 14:03:25 request_id=8f1a086c-c8ae-4c53-8745-212c1fdfc890 method=GET path=/api/v1/cities status=200 duration_ms=102
+2026/09/27 14:03:25 request_id=8f0993e4-5fc7-43fa-a389-153ce8c779b8 method=GET path=/api/v1/cities/6dc9754b-53e5-4d57-8556-d8f239c26416/destinations status=200 duration_ms=65
+2026/09/27 14:03:25 request_id=c4b4d505-9f41-4c78-bd8f-b21ea079dbec method=GET path=/api/v1/trips/search status=200 duration_ms=64
+2026/09/27 14:03:25 request_id=ce2e408d-a9aa-4a3b-b686-3884f0bebfd9 method=GET path=/api/v1/trips/df1318b5-6cca-462e-9e4d-e9c8c71d8107/seats status=200 duration_ms=307
+2026/09/27 14:03:26 request_id=e09cb32d-2314-44df-bda2-54110df86cfc method=GET path=/api/v1/trips/df1318b5-6cca-462e-9e4d-e9c8c71d8107/seats status=200 duration_ms=174
+2026/09/27 14:03:26 request_id=3fcc7964-2069-494f-89aa-02e1f26ed97e method=GET path=/api/v1/trips/67f54e3a-85ae-411c-8d24-b6e1a1d8cc03/seats status=200 duration_ms=163
+2026/09/27 14:03:26 request_id=d9defb47-e8d2-4d48-be02-1bfd6ebb6f6b method=GET path=/api/v1/trips/67f54e3a-85ae-411c-8d24-b6e1a1d8cc03/seats status=200 duration_ms=229
+2026/09/27 14:03:26 request_id=eec7e179-e2d4-4b70-b5ed-3d1f58ff31fb method=GET path=/api/v1/trips/cc815b6c-aed5-4263-91e0-cdffae6305c1/seats status=200 duration_ms=151
+2026/09/27 14:03:26 request_id=88a5d494-3fd2-4e8d-9ec1-7add32e72a84 method=GET path=/api/v1/trips/cc815b6c-aed5-4263-91e0-cdffae6305c1/seats status=200 duration_ms=146
+2026/09/27 14:10:12 request_id=4e66252b-c032-4e3c-9419-6981cf087778 method=GET path=/api/v1/cities status=200 duration_ms=166
+2026/09/27 14:10:12 request_id=3dba8ed7-8886-4e71-9072-e2a69d5e7dd9 method=GET path=/api/v1/cities/6dc9754b-53e5-4d57-8556-d8f239c26416/destinations status=200 duration_ms=191
+2026/09/27 14:10:12 request_id=b6f28a7d-10a8-467f-9c30-4693e681828b method=GET path=/api/v1/trips/search status=200 duration_ms=165
+2026/09/27 14:10:13 request_id=bd60902b-7c07-4140-94fb-dde3182b126c method=GET path=/api/v1/trips/df1318b5-6cca-462e-9e4d-e9c8c71d8107/seats status=200 duration_ms=330
+2026/09/27 14:10:13 request_id=aa49d42e-fd5b-4487-a0f1-a194fc4d6b46 method=GET path=/api/v1/trips/df1318b5-6cca-462e-9e4d-e9c8c71d8107/seats status=200 duration_ms=161
+2026/09/27 14:10:13 request_id=7faab87f-8323-4179-b342-c0847925ca97 method=GET path=/api/v1/trips/67f54e3a-85ae-411c-8d24-b6e1a1d8cc03/seats status=200 duration_ms=191
+2026/09/27 14:10:13 request_id=77fdd5ae-7df3-439a-a867-2ff27e4a54a0 method=GET path=/api/v1/trips/67f54e3a-85ae-411c-8d24-b6e1a1d8cc03/seats status=200 duration_ms=131
+2026/09/27 14:10:13 request_id=8f75b8c8-1be7-4921-a9cd-90c2f7f1d6da method=GET path=/api/v1/trips/cc815b6c-aed5-4263-91e0-cdffae6305c1/seats status=200 duration_ms=166
+2026/09/27 14:10:14 request_id=17a1c085-b2dd-4a9d-b4d9-f8dee6639415 method=GET path=/api/v1/trips/cc815b6c-aed5-4263-91e0-cdffae6305c1/seats status=200 duration_ms=210
+2026/09/28 02:53:37 booking expiry error: failed to connect to `user=neondb_owner database=neondb`: hostname resolving error: lookup ep-red-morning-b30iro0w-pooler.c-4.ap-southeast-1.aws.neon.tech: no such host
+2026/09/28 02:53:52 booking expiry error: failed to connect to `user=neondb_owner database=neondb`: hostname resolving error: lookup ep-red-morning-b30iro0w-pooler.c-4.ap-southeast-1.aws.neon.tech: no such host
+2026/09/28 10:13:53 booking expiry error: failed to connect to `user=neondb_owner database=neondb`: hostname resolving error: lookup ep-red-morning-b30iro0w-pooler.c-4.ap-southeast-1.aws.neon.tech: no such host
+2026/09/28 10:13:53 booking expiry error: failed to connect to `user=neondb_owner database=neondb`: hostname resolving error: lookup ep-red-morning-b30iro0w-pooler.c-4.ap-southeast-1.aws.neon.tech: no such host
+2026/09/28 10:14:56 expired_bookings=1
+2026/09/28 12:35:23 booking expiry error: context deadline exceeded

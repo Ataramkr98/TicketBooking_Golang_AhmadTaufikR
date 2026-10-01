@@ -1,0 +1,7 @@
+# Local secrets only; the committed template must stay tracked.
+.env
+!.env.example
+
+# Local Go build output
+bin/
+coverage.out
